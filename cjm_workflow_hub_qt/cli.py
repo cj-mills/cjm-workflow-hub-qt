@@ -8,6 +8,7 @@ differs; the hub never needs sources/paths on its argv."""
 
 import sys
 
+from cjm_substrate_qt_kit.theme import apply_theme
 from cjm_workflow_hub_tui.cli import build_parser, resolve_settings
 from PySide6.QtWidgets import QApplication
 
@@ -21,6 +22,7 @@ def main() -> int:  # Console-script entry point (cjm-workflow-hub-qt)
     args = parser.parse_args()
     s = resolve_settings(args)
     qapp = QApplication(sys.argv[:1])
+    apply_theme(qapp)
     win = HubWindow(s["manifests_dir"], graph_db_path=args.graph_db_path,
                     graph_capability=args.graph_capability)
     win.show()

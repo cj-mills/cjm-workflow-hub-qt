@@ -21,10 +21,10 @@ import getpass
 from typing import Any, Dict, List, Optional
 
 from cjm_substrate_qt_kit.style import apply_row_style
+from cjm_substrate_qt_kit.theme import make_font
 from cjm_transcript_graph_schema.schema import collection_node_id
 from cjm_workflow_hub_tui.spine import build_rows, HubData
 from PySide6.QtCore import Qt, QTimer, Signal
-from PySide6.QtGui import QFontDatabase
 from PySide6.QtWidgets import (QLabel, QLineEdit, QListWidget, QListWidgetItem, QMainWindow,
                                QVBoxLayout, QWidget)
 
@@ -94,7 +94,7 @@ class HubWindow(QMainWindow):
         self.list = QListWidget()
         self.list.setFocusPolicy(Qt.NoFocus)   # keys land in keyPressEvent
         self.list.setSelectionMode(QListWidget.SingleSelection)
-        self.list.setFont(QFontDatabase.systemFont(QFontDatabase.FixedFont))
+        self.list.setFont(make_font(kind="mono"))
         self.list.itemClicked.connect(self._on_item_clicked)
         self.editor = QLineEdit()
         self.editor.setVisible(False)

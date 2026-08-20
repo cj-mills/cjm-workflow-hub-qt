@@ -17,7 +17,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from cjm_transcript_graph_schema.schema import collection_node_id  # noqa: E402
-from cjm_workflow_hub_tui.spine import HubData  # noqa: E402
+from cjm_workflow_hub_qt.spine import HubData  # noqa: E402
 
 import cjm_workflow_hub_qt.app as app_mod  # noqa: E402
 import cjm_workflow_hub_qt.session as sess_mod  # noqa: E402

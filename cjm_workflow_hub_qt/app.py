@@ -23,7 +23,6 @@ from typing import Any, Dict, List, Optional
 from cjm_substrate_qt_kit.style import apply_row_style
 from cjm_substrate_qt_kit.theme import make_font
 from cjm_transcript_graph_schema.schema import collection_node_id
-from cjm_workflow_hub_tui.spine import build_rows, HubData
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import (QLabel, QLineEdit, QListWidget, QListWidgetItem, QMainWindow,
                                QVBoxLayout, QWidget)
@@ -31,6 +30,7 @@ from PySide6.QtWidgets import (QLabel, QLineEdit, QListWidget, QListWidgetItem, 
 from . import panes
 from .launch import build_stage_cmd, resolve_stage_app, spawn_stage, STAGE_APPS
 from .session import HubShellSession
+from .spine import build_rows, HubData
 
 _KEYNAMES = {Qt.Key_Up: "up", Qt.Key_Down: "down",
              Qt.Key_Escape: "escape", Qt.Key_Return: "enter",

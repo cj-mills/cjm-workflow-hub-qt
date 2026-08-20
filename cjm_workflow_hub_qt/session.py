@@ -21,7 +21,8 @@ from cjm_context_graph_layer.journal import sidecar_journal_path
 from cjm_substrate_qt_kit.loopthread import LoopThreadSession
 from cjm_transcription_core.curation import (confirm_collection, file_sources, refile_members,
                                              rename_collection, set_collection_order)
-from cjm_workflow_hub_tui.spine import HubData, load_hub_data, open_stack
+
+from .spine import HubData, load_hub_data, open_stack
 
 
 class HubShellSession(LoopThreadSession):

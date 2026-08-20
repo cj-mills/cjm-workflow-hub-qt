@@ -9,10 +9,10 @@ differs; the hub never needs sources/paths on its argv."""
 import sys
 
 from cjm_substrate_qt_kit.theme import apply_theme
-from cjm_workflow_hub_tui.cli import build_parser, resolve_settings
 from PySide6.QtWidgets import QApplication
 
 from .app import HubWindow
+from .driver import build_parser, resolve_settings
 
 
 def main() -> int:  # Console-script entry point (cjm-workflow-hub-qt)

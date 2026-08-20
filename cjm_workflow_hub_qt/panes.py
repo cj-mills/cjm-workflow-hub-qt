@@ -11,7 +11,7 @@ order position, the collection status) — the transcription-qt precedent."""
 
 from typing import Any, Dict, List, Optional
 
-from cjm_workflow_hub_tui.spine import stage_glance
+from .spine import stage_glance
 
 _COLL_STYLE = {"proposed": "bold yellow", "confirmed": "bold green",
                "none": "bold dim"}

@@ -93,3 +93,55 @@ def group_targets_by_collection(
         if r["kind"] == "source" and r["id"] in targets:
             by_coll.setdefault(r.get("coll_id"), []).append(r["id"])
     return by_coll
+
+
+def status_readout(*, error: Optional[str], busy: Optional[str],
+                   pending_title: Optional[str], pending_count: int) -> str:
+    """The status ladder's RESULT half (DEC 2a42c028 adoption): error >
+    busy > the two-phase existing-title confirm. Empty when quiet — the
+    modal prompts moved to the context slot (context_text) and the browse
+    key legend to the hint line/overlay."""
+    if error:
+        return error
+    if busy:
+        return busy
+    if pending_title:
+        return (f"'{pending_title}' attaches to EXISTING collection "
+                f"({pending_count} members) — enter again to confirm")
+    return ""
+
+
+def context_text(*, editing: Optional[str], mode: str) -> str:
+    """The status ladder's MODE-SCOPED half: the editor prompt and the
+    order-mode guidance ride the strip's context slot, present exactly
+    while their mode is."""
+    if editing:
+        return "enter title (empty cancels) · esc cancel"
+    if mode == "order":
+        return "ORDER MODE · J/K move member · enter commit · esc cancel"
+    return ""
+
+
+def hint_entries() -> List[Dict[str, str]]:
+    """The hub's declarative hint model (DEC 2a42c028): keyPressEvent-idiom
+    app, so the model is data — verbs name the action methods."""
+    def e(verb: str, key: str, label: str, group: str) -> Dict[str, str]:
+        return {"verb": verb, "key": key, "label": label, "group": group}
+    return [e("move", "j/k", "walk rows", "Browse"),
+            e("filter", "/", "filter rows", "Browse"),
+            e("toggle_select", "space", "select", "Browse"),
+            e("reload", "R", "reload", "Browse"),
+            e("file", "f", "file/refile", "Collections"),
+            e("rename", "r", "rename/merge", "Collections"),
+            e("confirm", "y", "confirm", "Collections"),
+            e("order_mode", "g", "order mode", "Collections"),
+            e("launch_transcription", "1", "launch transcription", "Launch"),
+            e("launch_decomp", "2", "launch decomp", "Launch"),
+            e("launch_correction", "3", "launch correction", "Launch"),
+            e("cancel", "esc", "cancel", "App"),
+            e("quit", "q", "quit", "App")]
+
+
+def default_pins() -> List[str]:
+    """The hint line's default verbs before the user pins their own."""
+    return ["move", "filter", "toggle_select", "launch_transcription"]

@@ -20,6 +20,8 @@ under it and take the second enter — surfacing, never a gate."""
 import getpass
 from typing import Any, Dict, List, Optional
 
+from cjm_substrate_qt_kit.keyhints import hint_line, KeyHintsOverlay
+from cjm_substrate_qt_kit.statusstrip import StatusStrip
 from cjm_substrate_qt_kit.style import apply_row_style
 from cjm_substrate_qt_kit.theme import make_font
 from cjm_transcript_graph_schema.schema import collection_node_id
@@ -34,7 +36,12 @@ from .spine import build_rows, HubData
 
 _KEYNAMES = {Qt.Key_Up: "up", Qt.Key_Down: "down",
              Qt.Key_Escape: "escape", Qt.Key_Return: "enter",
-             Qt.Key_Enter: "enter", Qt.Key_Space: "space"}
+             Qt.Key_Enter: "enter", Qt.Key_Space: "space",
+             Qt.Key_PageUp: "pgup", Qt.Key_PageDown: "pgdn",
+             Qt.Key_Home: "home", Qt.Key_End: "end"}
+
+# Long-range stride for PgUp/PgDn (792d3ac6 — the source list is growing).
+PAGE_STRIDE = 10
 
 
 class HubWindow(QMainWindow):
@@ -57,7 +64,8 @@ class HubWindow(QMainWindow):
         self.mode = "browse"                 # "browse" | "order"
         self.order_coll: Optional[str] = None
         self.order_work: List[str] = []      # member ids being reordered
-        self.editing: Optional[str] = None   # None | "file" | "rename"
+        self.editing: Optional[str] = None   # None | "file" | "rename" | "filter"
+        self.filter = ""                     # live row filter (`/`; Esc clears)
         self.pending_title: Optional[str] = None  # two-phase existing-title confirm
         self.busy: Optional[str] = None
         self.error: Optional[str] = None
@@ -99,28 +107,44 @@ class HubWindow(QMainWindow):
         self.editor = QLineEdit()
         self.editor.setVisible(False)
         self.editor.returnPressed.connect(self._on_editor_submitted)
-        self.status = QLabel("")
-        self.status.setTextFormat(Qt.PlainText)
-        self.status.setWordWrap(True)
+        self.editor.textChanged.connect(self._on_editor_typed)
+        self.strip = StatusStrip()
+        self.hints_overlay = KeyHintsOverlay(
+            self, panes.hint_entries(), pins=panes.default_pins(),
+            on_pins_changed=self._on_pins_changed)
         lay.addWidget(self.header)
         lay.addWidget(self.list, 1)
         lay.addWidget(self.editor)
-        lay.addWidget(self.status)
+        lay.addWidget(self.strip)
         self.setCentralWidget(central)
+        self.strip.set_hints(hint_line(panes.hint_entries(),
+                                       panes.default_pins()))
 
     # ---- painting --------------------------------------------------------
 
     def _paint(self) -> None:
         db = self.graph_db_path or ""
-        self.header.setText(f" WORKSPACE HUB  {db}")
+        chip = f"  ·  filter: {self.filter}" if self.filter else ""
+        self.header.setText(f" WORKSPACE HUB  {db}{chip}")
         self.list.setUpdatesEnabled(False)
         self.list.clear()
         if self.rows:
-            for spec in panes.hub_rows(self.rows, self.selected, self.mode,
-                                       self.order_coll, self.order_work):
+            specs = list(panes.hub_rows(self.rows, self.selected, self.mode,
+                                        self.order_coll, self.order_work))
+            for spec in specs:
                 item = QListWidgetItem(spec["text"])
                 apply_row_style(item, spec["style"])
                 self.list.addItem(item)
+            if self.filter:
+                # Row filter (`/`, user ask on rung caa33c98): narrow the list
+                # to matching rows; the cursor lands on a visible match.
+                term = self.filter.lower()
+                visible = {i for i, spec in enumerate(specs)
+                           if term in str(spec.get("text", "")).lower()}
+                for i in range(self.list.count()):
+                    self.list.item(i).setHidden(i not in visible)
+                if visible and self.cursor not in visible:
+                    self.cursor = min(visible)
             self.cursor = max(0, min(self.cursor, len(self.rows) - 1))
             self.list.setCurrentRow(self.cursor)
             self.list.scrollToItem(self.list.currentItem())
@@ -133,13 +157,27 @@ class HubWindow(QMainWindow):
         self._paint_status()
 
     def _paint_status(self) -> None:
+        """The footer decomposition (DEC 2a42c028): the ladder's RESULT half
+        rides the readout (error > busy > pending-confirm), modal prompts
+        ride the context slot, and the RUNNING children roster is a
+        live-state chip — the launch notice itself is transient."""
         n = 0
         if self.pending_title:
             existing = self._existing_by_title(self.pending_title)
             n = len(self.data.members.get(existing, [])) if existing else 0
-        self.status.setText(panes.status_text(
-            error=self.error, busy=self.busy, pending_title=self.pending_title,
-            pending_count=n, editing=self.editing, mode=self.mode))
+        readout = panes.status_readout(
+            error=self.error, busy=self.busy,
+            pending_title=self.pending_title, pending_count=n)
+        self.strip.set_readout(readout, role="danger" if self.error else None)
+        self.strip.set_context(panes.context_text(editing=self.editing,
+                                                  mode=self.mode))
+        running = " · ".join(f"{which} {proc.pid}"
+                             for proc, which in self.children.items())
+        self.strip.set_chips([("running", f"running: {running}")]
+                             if running else [])
+
+    def _on_pins_changed(self, pins: List[str]) -> None:
+        self.strip.set_hints(hint_line(panes.hint_entries(), pins))
 
     # ---- key dispatch ----------------------------------------------------
 
@@ -163,9 +201,18 @@ class HubWindow(QMainWindow):
         t["R"] = self.action_reload
         t["escape"] = self.action_cancel
         t["q"] = self.close
+        t["/"] = self.action_filter
+        # Long-range nav (792d3ac6): page + top/bottom jump over the rows.
+        t["pgdn"] = lambda: self.action_move(PAGE_STRIDE)
+        t["pgup"] = lambda: self.action_move(-PAGE_STRIDE)
+        t["end"] = lambda: self.action_move(10**9)
+        t["home"] = lambda: self.action_move(-(10**9))
         self._key_table = t
 
     def keyPressEvent(self, event) -> None:
+        if event.text() == "?":
+            self.hints_overlay.toggle()   # universal, gate-free (DEC 2a42c028)
+            return
         name = _KEYNAMES.get(event.key())
         if name is None:
             text = event.text()
@@ -244,9 +291,26 @@ class HubWindow(QMainWindow):
     def action_move(self, delta: int) -> None:
         if not self.rows or self.editing:
             return
-        self.cursor = max(0, min(self.cursor + delta, len(self.rows) - 1))
+        n = len(self.rows)
+        target = max(0, min(self.cursor + delta, n - 1))
+        step = 1 if delta > 0 else -1
+        # An active filter hides rows: continue in the move direction past
+        # hidden rows, falling back toward the origin at the edge.
+        j = target
+        while 0 <= j < n and self._row_hidden(j):
+            j += step
+        if not (0 <= j < n):
+            j = target
+            while 0 <= j < n and self._row_hidden(j):
+                j -= step
+        if 0 <= j < n and not self._row_hidden(j):
+            self.cursor = j
         self.list.setCurrentRow(self.cursor)
         self.list.scrollToItem(self.list.currentItem())
+
+    def _row_hidden(self, i: int) -> bool:
+        item = self.list.item(i)
+        return item is not None and item.isHidden()
 
     def action_toggle_select(self) -> None:
         row = self._focused()
@@ -286,6 +350,19 @@ class HubWindow(QMainWindow):
             return
         self._open_editor("rename", prefill=row["title"])
 
+    def action_filter(self) -> None:
+        """`/`: live row filter (user ask on rung caa33c98 — the source list is
+        growing past visual-scan size). Type to narrow, Enter keeps the filter
+        and returns focus to the rows, Escape clears it."""
+        if self.mode != "browse" or self.editing or self.busy:
+            return
+        self._open_editor("filter", prefill=self.filter)
+
+    def _on_editor_typed(self, text: str) -> None:
+        if self.editing == "filter":
+            self.filter = text.strip()
+            self._paint()
+
     def _open_editor(self, kind: str, prefill: str = "") -> None:
         self.editor.setText(prefill)
         self.editor.setVisible(True)
@@ -304,6 +381,11 @@ class HubWindow(QMainWindow):
 
     def _on_editor_submitted(self) -> None:
         if not self.editing:
+            return
+        if self.editing == "filter":
+            # Enter keeps the filter applied; focus returns to the rows.
+            self._close_editor()
+            self._paint()
             return
         title = self.editor.text().strip()
         if not title:
@@ -401,7 +483,10 @@ class HubWindow(QMainWindow):
         self.children[proc] = which
         self._paint()
         if not self.error:   # donor fidelity: launching never clears a sticky error
-            self.status.setText(f" launched {which} (pid {proc.pid}) ")
+            # Transient class (DEC 2a42c028): the notice expires on its own
+            # timer; the running-roster CHIP carries the live state instead
+            # of a message pinned until the child exits.
+            self.strip.show_transient(f"launched {which} (pid {proc.pid})")
 
     def _poll_children(self) -> None:
         """The reload-on-resume replacement: when a spawned stage app exits,
@@ -414,6 +499,8 @@ class HubWindow(QMainWindow):
             if proc.returncode:
                 self.error = f"{which} app exited with rc={proc.returncode}"
             self._reload_pending = True
+        if exited:
+            self._paint_status()   # the running-roster chip drops the child now
         if (self._reload_pending and self.mode == "browse"
                 and not self.editing and not self.busy):
             self._reload_pending = False
@@ -421,6 +508,8 @@ class HubWindow(QMainWindow):
 
     def action_cancel(self) -> None:
         if self.editing:
+            if self.editing == "filter":
+                self.filter = ""   # Escape drops the filter entirely
             self._close_editor()
         elif self.mode == "order":
             self.mode, self.order_coll, self.order_work = "browse", None, []

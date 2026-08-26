@@ -121,7 +121,8 @@ def main() -> int:
     assert "Alpha ⚑ proposed  (2)" in list_text(win)
     assert "TDc 3segs" in list_text(win)
     assert "Unfiled" in list_text(win)
-    assert "space select" in win.status.text()
+    assert "space select" in win.strip.hints.text()
+    assert win.strip.hints.text().endswith("? keys")
 
     # cursor walk + select toggle paints the pick box
     win.action_move(1)                 # onto s1 ("one")
@@ -152,7 +153,7 @@ def main() -> int:
     win.editor.setText("Alpha")
     win._on_editor_submitted()
     assert win.pending_title == "Alpha"
-    assert "EXISTING collection (2 members)" in win.status.text()
+    assert "EXISTING collection (2 members)" in win.strip.readout.text()
     win._on_editor_submitted()         # the second enter commits
     pump(app, lambda: not win.busy, "the refile-into-existing gesture")
     assert ("file", "Alpha", ("s3",)) in CALLS
@@ -161,7 +162,7 @@ def main() -> int:
     win.cursor = 0
     win.action_order_mode()
     assert win.mode == "order" and win.order_work == ["s1", "s2"]
-    assert "ORDER MODE" in win.status.text()
+    assert "ORDER MODE" in win.strip.context.text()
     win.action_move(1)                 # onto the first member
     win.action_order_shift(1)
     assert win.order_work == ["s2", "s1"]
@@ -181,7 +182,7 @@ def main() -> int:
     # spawn: unresolvable stage app -> loud error NAMING the env, no spawn
     app_mod.resolve_stage_app = lambda which: None
     win.action_launch("decomp")
-    assert "cjm-transcript-decomp-core" in win.status.text()
+    assert "cjm-transcript-decomp-core" in win.strip.readout.text()
     win.action_cancel()
 
     # spawn: resolved -> detached child tracked; its exit triggers a reload
@@ -191,7 +192,9 @@ def main() -> int:
     win.cursor = 1                     # correction opens ON a source
     win.action_launch("correction")
     assert win.children == {proc: "correction"}
-    assert "launched correction" in win.status.text()
+    # transient notice + live-state roster chip (DEC 2a42c028)
+    assert "launched correction" in win.strip.transient.text()
+    assert "correction" in win.strip._chips["running"].text()
     assert ("spawn", ("/fake/bin/cjm-transcript-correction-qt",
                       "--graph-db-path", "/tmp/probe-graph.db",
                       "--source", "s1")) in CALLS

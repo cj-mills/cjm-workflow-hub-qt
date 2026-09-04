@@ -9,4 +9,4 @@ the stage TUIs, this window SPAWNS the Qt stage apps as detached processes
 resolved across their core envs — the one place the mechanics necessarily
 differ (amendment 2030586d). Born on-graph."""
 
-__version__ = "0.0.1"
+__version__ = "0.0.3"

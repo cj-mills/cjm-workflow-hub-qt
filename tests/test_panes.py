@@ -61,3 +61,11 @@ def test_group_targets_by_collection_matches_the_donor_grouping():
     grouped = panes.group_targets_by_collection(ROWS, {"s1", "s2", "s3"})
     assert grouped == {"c1": ["s1", "s2"], None: ["s3"]}
     assert panes.group_targets_by_collection(ROWS, {"s2"}) == {"c1": ["s2"]}
+
+
+def test_note_rows_paint_dim_and_unknown_status_never_crashes():
+    rows = ROWS + [{"kind": "note", "id": None, "title": "1 retired collection(s) hidden"},
+                   {"kind": "collection", "id": "c9", "title": "Odd", "status": "someday", "count": 0}]
+    out = panes.hub_rows(rows, set(), "browse", None, [])
+    assert out[5] == {"text": "  1 retired collection(s) hidden", "style": "dim"}
+    assert out[6]["text"] == "Odd  (0)" and out[6]["style"] == "bold dim"

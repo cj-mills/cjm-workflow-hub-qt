@@ -171,8 +171,17 @@ def build_rows(
     rows: List[Dict[str, Any]] = []
     filed: set = set()
     titles = dict(data.sources)
+    hidden_retired = 0
     for c in sorted(data.collections, key=lambda c: c["title"].lower()):
         members = data.members.get(c["id"], [])
+        if c["status"] == "retired":
+            # A retired collection (ruling a7617bd4; transcription-core
+            # `retire-collection`) is hidden WITH its members — never cascaded,
+            # never listed as Unfiled; `--unretire` brings it back. The
+            # correction-qt precedent: a trailing dim note carries the count.
+            filed.update(i for i, _ in members)
+            hidden_retired += 1
+            continue
         rows.append({"kind": "collection", "id": c["id"], "title": c["title"],
                      "status": c["status"], "count": len(members)})
         ordered = [m for m in data.order.get(c["id"], []) if m in {i for i, _ in members}]
@@ -193,6 +202,9 @@ def build_rows(
             rows.append({"kind": "source", "id": sid, "title": title,
                          "coll_id": None, "ordered": False,
                          "counts": data.status.get(sid, {})})
+    if hidden_retired:
+        rows.append({"kind": "note", "id": None,
+                     "title": f"{hidden_retired} retired collection(s) hidden"})
     return rows
 
 

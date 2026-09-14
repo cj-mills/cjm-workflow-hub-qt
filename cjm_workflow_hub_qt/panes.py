@@ -15,6 +15,7 @@ from .spine import stage_glance
 
 _COLL_STYLE = {"proposed": "bold yellow", "confirmed": "bold green",
                "none": "bold dim"}
+_COLL_STYLE_DEFAULT = "bold dim"  # an unknown status paints, never crashes the reload
 
 
 def hub_rows(rows: List[Dict[str, Any]],        # build_rows output (spine)
@@ -28,15 +29,19 @@ def hub_rows(rows: List[Dict[str, Any]],        # build_rows output (spine)
     Collections: status-colored title, ⚑ when proposed, member count.
     Sources: the [x] pick box (green when picked), the order-mode position
     prefix (magenta) for members of the collection being reordered, the
-    stage-at-a-glance suffix, and ·ordered for chain members."""
+    stage-at-a-glance suffix, and ·ordered for chain members. Notes (the
+    retired-collections count) paint dim and take no action."""
     out: List[Dict[str, Any]] = []
     for row in rows:
+        if row["kind"] == "note":
+            out.append({"text": "  " + row["title"], "style": "dim"})
+            continue
         if row["kind"] == "collection":
             text = row["title"]
             if row["status"] == "proposed":
                 text += " ⚑ proposed"
             text += f"  ({row['count']})"
-            out.append({"text": text, "style": _COLL_STYLE[row["status"]]})
+            out.append({"text": text, "style": _COLL_STYLE.get(row["status"], _COLL_STYLE_DEFAULT)})
             continue
         in_order = (mode == "order" and row.get("coll_id") == order_coll)
         if in_order:

@@ -64,3 +64,22 @@ def test_stage_glance():
                          "corrections": 3, "marks": 1})
     assert full == "TDC 214segs 3corr 1⚑"
     assert stage_glance({"fine_segs": 7}) == "tDc 7segs"
+
+
+def test_build_rows_hides_retired_collections_with_their_members():
+    """Ruling a7617bd4 / transcription-core retire-collection: a retired collection
+    is hidden WITH its members (never Unfiled), and a trailing note carries the
+    count — the correction-qt precedent. The live sighting: the GPU MODE_OLD
+    retirement crashed the hub's paint with KeyError('retired')."""
+    data = HubData(
+        collections=[{"id": "cOld", "title": "GPU MODE_OLD", "status": "retired"},
+                     {"id": "cNew", "title": "GPU MODE", "status": "confirmed"}],
+        members={"cOld": [("s1", "Lecture 1 (webm)")], "cNew": [("s2", "Lecture 1 (mp4)")]},
+        order={}, sources=[("s1", "Lecture 1 (webm)"), ("s2", "Lecture 1 (mp4)"), ("s3", "Loose")],
+        status={})
+    rows = build_rows(data)
+    assert [(r["kind"], r["title"]) for r in rows] == [
+        ("collection", "GPU MODE"), ("source", "Lecture 1 (mp4)"),
+        ("collection", "Unfiled"), ("source", "Loose"),
+        ("note", "1 retired collection(s) hidden")]
+    assert all(r["title"] != "Lecture 1 (webm)" for r in rows), "a retired member is never Unfiled"

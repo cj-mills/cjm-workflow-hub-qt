@@ -38,8 +38,12 @@ Qt front door for cjm-substrate workflows — the last migration on the PySide6 
 
 ### `cjm_workflow_hub_qt.panes`
 
+- `context_text` _function_ — The status ladder's MODE-SCOPED half: the editor prompt and the
+- `default_pins` _function_ — The hint line's default verbs before the user pins their own.
 - `group_targets_by_collection` _function_ — Group the filed sources by the collection they LEAVE, so each move is
+- `hint_entries` _function_ — The hub's declarative hint model (DEC 2a42c028): keyPressEvent-idiom
 - `hub_rows` _function_ — One list row per spine row — the donor's _paint_row, single-style.
+- `status_readout` _function_ — The status ladder's RESULT half (DEC 2a42c028 adoption): error >
 - `status_text` _function_ — The donor's status ladder, verbatim precedence: error > busy > the
 
 ### `cjm_workflow_hub_qt.session`

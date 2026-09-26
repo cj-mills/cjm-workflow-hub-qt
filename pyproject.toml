@@ -11,7 +11,7 @@ requires-python = ">=3.12"
 license = {text = "Apache-2.0"}
 authors = [{name = "Christian J. Mills", email = "9126128+cj-mills@users.noreply.github.com"}]
 classifiers = ["Programming Language :: Python :: 3", "Programming Language :: Python :: 3 :: Only"]
-dependencies = ['cjm-transcription-core>=0.0.8', 'cjm-transcript-correction-core>=0.0.6', 'cjm-context-graph-layer>=0.0.11', 'cjm-context-graph-primitives>=0.0.15', 'cjm-transcript-graph-schema>=0.0.7', 'cjm-substrate>=0.0.61', 'cjm-substrate-qt-kit>=0.0.1', 'PySide6']
+dependencies = ['cjm-transcription-core>=0.0.8', 'cjm-transcript-correction-core>=0.0.6', 'cjm-context-graph-layer>=0.0.11', 'cjm-context-graph-primitives>=0.0.15', 'cjm-transcript-graph-schema>=0.0.7', 'cjm-substrate>=0.0.61', 'cjm-substrate-qt-kit>=0.0.8', 'PySide6']
 
 [project.scripts]
 cjm-workflow-hub-qt = "cjm_workflow_hub_qt.cli:main"

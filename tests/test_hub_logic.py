@@ -2,8 +2,7 @@
 and the stage-at-a-glance rendering (paint-path strings verify by pilot probe,
 per the standing TUI craft)."""
 
-from cjm_workflow_hub_qt.spine import (HubData, build_rows, join_pipeline_status,
-                                        stage_glance)
+from cjm_workflow_hub_qt.spine import build_rows, HubData, join_pipeline_status, stage_glance
 
 
 def test_join_pipeline_status():

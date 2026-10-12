@@ -4,9 +4,8 @@ verb's commit-then-reload composition."""
 
 import asyncio
 
-import pytest
-
 import cjm_workflow_hub_qt.session as session_mod
+import pytest
 from cjm_workflow_hub_qt.session import HubShellSession
 
 

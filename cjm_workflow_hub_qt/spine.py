@@ -133,6 +133,7 @@ async def correction_status(
 @dataclass
 class HubData:
     """Everything one hub reload pulls off the graph (paint-ready inputs)."""
+
     collections: List[Dict[str, Any]] = field(default_factory=list)  # [{"id","title","status"}]
     members: Dict[str, List[Tuple[str, str]]] = field(default_factory=dict)  # coll_id -> [(src_id, title)]
     order: Dict[str, List[str]] = field(default_factory=dict)         # coll_id -> ordered member ids

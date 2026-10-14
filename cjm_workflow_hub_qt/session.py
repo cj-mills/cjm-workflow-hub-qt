@@ -18,7 +18,9 @@ from concurrent.futures import Future
 from typing import Any, Callable, Dict, List, Optional
 
 from cjm_context_graph_layer.journal import sidecar_journal_path
-from cjm_substrate_qt_kit.loopthread import LoopThreadSession
+from cjm_context_graph_layer.ops import store_covariates
+from cjm_substrate_qt_kit.gesturebench import ladder
+from cjm_substrate_qt_kit.loopthread import coro_name, LoopThreadSession
 from cjm_transcription_core.curation import (confirm_collection, file_sources, refile_members,
                                              rename_collection, set_collection_order)
 
@@ -33,9 +35,13 @@ class HubShellSession(LoopThreadSession):
     the sidecar journal path every curation commit rides (ccbab9f5); load()
     and the curation verbs each resolve to a fresh HubData. close() runs
     on_close() on the loop (queue stop + capability unload — the donor's
-    _teardown), then stops the thread. One instance per window."""
+    _teardown), then stops the thread. One instance per window. Every verb and
+    serialized gesture is a measured gesture (the kit's seam, design detail
+    4389a579) in the transcript graph's timings ledger, named once the stack
+    resolves the db."""
 
     thread_name = "hub-session"
+    app = "hub"
 
     def __init__(self, manifests_dir: str,   # Capability manifests directory
                  *, graph_capability: str = "cjm-capability-graph-sqlite",
@@ -63,7 +69,7 @@ class HubShellSession(LoopThreadSession):
         but the donor's Textual message queue ran each action handler to
         completion before dispatching the next key — the commit-then-reload
         consistency every gesture assumes. The lock restores exactly that."""
-        return self.submit(self._serial(coro))
+        return self.submit(self._serial(coro), gesture=coro_name(coro))
 
     async def _serial(self, coro):
         if self._gesture_lock is None:
@@ -89,7 +95,13 @@ class HubShellSession(LoopThreadSession):
             raise RuntimeError(str(e) or "capability load failed") from e
         self.db = str(db)
         self.journal_path = sidecar_journal_path(self.db)
+        await self.measure_into(self.db)
         return {"db": self.db}
+
+    async def measure_covariates(self) -> Optional[Dict[str, Any]]:
+        """The store's growth covariates beside the gestures (design detail 4389a579): the
+        layer's store half -- the gestures read no journal history."""
+        return await store_covariates(self.queue, self.graph_capability)
 
     # ---- reload + the curation gestures ----------------------------------
 
@@ -168,3 +180,18 @@ class HubShellSession(LoopThreadSession):
                 pass
         self.queue = None
         self.manager = None
+
+
+def bench_gestures(
+    params: Dict[str, Any],  # db, manifests_dir
+) -> List[str]:  # The gestures run, in order
+    """The hub's canonical gestures for the scale harness (design detail 4389a579): its open
+    ladder on one graph -- the stack, one full reload (collections, sources, statuses) -- each
+    measured by the session's own seam."""
+    s = HubShellSession(params["manifests_dir"], timeout=float(params.get("timeout_s", 3600)))
+    s.start()
+    try:
+        return ladder([("open_stack", lambda: s.open_stack(params["db"]).result(s.timeout)),
+                       ("load", lambda: s.load().result(s.timeout))])
+    finally:
+        s.close()

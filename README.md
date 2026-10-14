@@ -49,6 +49,7 @@ Qt front door for cjm-substrate workflows — the last migration on the PySide6 
 ### `cjm_workflow_hub_qt.session`
 
 - `HubShellSession` _class_ — The loop-thread seat for the hub shell.
+- `bench_gestures` _function_ — The hub's canonical gestures for the scale harness (design detail 4389a579): its open
 
 ### `cjm_workflow_hub_qt.spine`
 

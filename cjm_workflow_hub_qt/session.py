@@ -7,17 +7,18 @@ Textual's event loop"; under Qt that loop is this session's daemon thread.
 open_stack() bootstraps the capability stack and resolves the effective db
 (2ce81638 resolution: explicit path wins, else the workspace-scoped persisted
 config answers); every curation GESTURE composes the core commit call(s) with
-a fresh load_hub_data into ONE coroutine submitted through run_serial — the
+a fresh load_hub_data into ONE coroutine submitted through run_gesture — the
 donor committed then reloaded inside one Textual action handler, and the
 gesture lock restores exactly that run-to-completion semantics, so the HubData
-a gesture resolves to always reflects its own commit. Deliberately Qt-free
+a gesture resolves to always reflects its own commit. The commits run inside
+ONE atomic unit on the graph's journal (ruling 3de795e4), the reload after it. Deliberately Qt-free
 (stdlib + spine imports only): testable headless, openers injectable."""
 
 import asyncio
 from concurrent.futures import Future
 from typing import Any, Callable, Dict, List, Optional
 
-from cjm_context_graph_layer.journal import sidecar_journal_path
+from cjm_context_graph_layer.journal import sidecar_journal_path, write_window
 from cjm_context_graph_layer.ops import store_covariates
 from cjm_substrate_qt_kit.gesturebench import ladder
 from cjm_substrate_qt_kit.loopthread import coro_name, LoopThreadSession
@@ -77,6 +78,21 @@ class HubShellSession(LoopThreadSession):
         async with self._gesture_lock:
             return await coro
 
+    def run_gesture(self, commits) -> Future:
+        """Submit one curation GESTURE: its commits as ONE atomic unit on the
+        graph's journal (ruling 3de795e4) -- the family's writer, each core
+        verb's window joined, the ops appended whole at the unit's close, then
+        applied, so a crash leaves all of them or none -- then a fresh reload,
+        OUTSIDE the unit, so it reads what the unit landed (and a failed reload
+        never discards the commit). Serialized like every gesture."""
+        return self.submit(self._serial(self._gesture(commits)), gesture=coro_name(commits))
+
+    async def _gesture(self, commits) -> HubData:
+        async with write_window(self.queue, self.graph_capability, self.journal_path,
+                                what=coro_name(commits), unit=True):
+            await commits
+        return await self._load()
+
     # ---- the open ladder -------------------------------------------------
 
     def open_stack(self, graph_db_path: Optional[str]) -> Future:
@@ -114,23 +130,21 @@ class HubShellSession(LoopThreadSession):
 
     def confirm(self, coll_id: str) -> Future:
         """Confirm a ⚑-proposed collection, then reload (one gesture)."""
-        return self.run_serial(self._confirm(coll_id))
+        return self.run_gesture(self._confirm(coll_id))
 
     async def _confirm(self, coll_id):
         await confirm_collection(self.queue, self.graph_capability, coll_id,
                                  self.actor, journal_path=self.journal_path)
-        return await self._load()
 
     def rename(self, coll_id: str, title: str) -> Future:
         """Rename a collection (merge when the title already exists), then
         reload (one gesture)."""
-        return self.run_serial(self._rename(coll_id, title))
+        return self.run_gesture(self._rename(coll_id, title))
 
     async def _rename(self, coll_id, title):
         await rename_collection(self.queue, self.graph_capability, coll_id,
                                 title, self.actor,
                                 journal_path=self.journal_path)
-        return await self._load()
 
     def file_targets(self, grouped: Dict[Optional[str], List[str]],
                      title: str) -> Future:
@@ -138,7 +152,7 @@ class HubShellSession(LoopThreadSession):
         collection they leave so each move is one journaled op (the donor's
         _commit_file contract; grouping = panes.group_targets_by_collection),
         then reload (one gesture)."""
-        return self.run_serial(self._file_targets(grouped, title))
+        return self.run_gesture(self._file_targets(grouped, title))
 
     async def _file_targets(self, grouped, title):
         for coll_id, ids in grouped.items():
@@ -150,18 +164,16 @@ class HubShellSession(LoopThreadSession):
                 await file_sources(self.queue, self.graph_capability, title,
                                    ids, self.actor,
                                    journal_path=self.journal_path)
-        return await self._load()
 
     def set_order(self, coll_id: str, order: List[str]) -> Future:
         """Commit an order-mode chain for one collection, then reload (one
         gesture)."""
-        return self.run_serial(self._set_order(coll_id, order))
+        return self.run_gesture(self._set_order(coll_id, order))
 
     async def _set_order(self, coll_id, order):
         await set_collection_order(self.queue, self.graph_capability, coll_id,
                                    order, self.actor,
                                    journal_path=self.journal_path)
-        return await self._load()
 
     # ---- teardown --------------------------------------------------------
 

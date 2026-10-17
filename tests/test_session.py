@@ -6,11 +6,13 @@ import asyncio
 
 import cjm_workflow_hub_qt.session as session_mod
 import pytest
+from cjm_context_graph_layer.testing import MemGraph
 from cjm_workflow_hub_qt.session import HubShellSession
 
 
-class FakeQueue:
+class FakeQueue(MemGraph):  # an in-memory store: a gesture's unit opens the journal's writer on it
     def __init__(self):
+        super().__init__()
         self.stopped = False
 
     async def stop(self):
@@ -91,7 +93,7 @@ def test_run_serial_runs_gestures_to_completion_in_submission_order():
         s.close()
 
 
-def test_confirm_composes_commit_then_reload(monkeypatch):
+def test_confirm_composes_commit_then_reload(monkeypatch, tmp_path):
     calls = []
     s = make_session(calls)
 
@@ -100,7 +102,7 @@ def test_confirm_composes_commit_then_reload(monkeypatch):
 
     monkeypatch.setattr(session_mod, "confirm_collection", fake_confirm)
     try:
-        s.open_stack("/tmp/g.db").result(10)
+        s.open_stack(str(tmp_path / "g.db")).result(10)
         assert s.confirm("coll-1").result(10) == "DATA"
         assert calls[-2] == ("confirm", "coll-1", "human:test", s.journal_path)
         assert calls[-1] == ("load", "cjm-capability-graph-sqlite")
@@ -108,7 +110,7 @@ def test_confirm_composes_commit_then_reload(monkeypatch):
         s.close()
 
 
-def test_file_targets_routes_refile_vs_file_per_group(monkeypatch):
+def test_file_targets_routes_refile_vs_file_per_group(monkeypatch, tmp_path):
     calls = []
     s = make_session(calls)
 
@@ -122,7 +124,7 @@ def test_file_targets_routes_refile_vs_file_per_group(monkeypatch):
     monkeypatch.setattr(session_mod, "refile_members", fake_refile)
     monkeypatch.setattr(session_mod, "file_sources", fake_file)
     try:
-        s.open_stack("/tmp/g.db").result(10)
+        s.open_stack(str(tmp_path / "g.db")).result(10)
         grouped = {"c1": ["s1", "s2"], None: ["s3"]}
         assert s.file_targets(grouped, "New Title").result(10) == "DATA"
         assert ("refile", ("s1", "s2"), "c1", "New Title") in calls
@@ -132,7 +134,7 @@ def test_file_targets_routes_refile_vs_file_per_group(monkeypatch):
         s.close()
 
 
-def test_rename_and_set_order_compose_commit_then_reload(monkeypatch):
+def test_rename_and_set_order_compose_commit_then_reload(monkeypatch, tmp_path):
     calls = []
     s = make_session(calls)
 
@@ -147,7 +149,7 @@ def test_rename_and_set_order_compose_commit_then_reload(monkeypatch):
     monkeypatch.setattr(session_mod, "rename_collection", fake_rename)
     monkeypatch.setattr(session_mod, "set_collection_order", fake_order)
     try:
-        s.open_stack("/tmp/g.db").result(10)
+        s.open_stack(str(tmp_path / "g.db")).result(10)
         assert s.rename("c1", "Better").result(10) == "DATA"
         assert ("rename", "c1", "Better") in calls
         assert s.set_order("c1", ["s2", "s1"]).result(10) == "DATA"
@@ -165,3 +167,29 @@ def test_close_stops_queue_and_unloads_capability():
     assert queue.stopped
     assert manager.unloaded == ["cjm-capability-graph-sqlite"]
     assert not s.running
+
+
+def test_a_curation_gesture_lands_as_one_atomic_unit_then_reloads(tmp_path):
+    """Ruling 3de795e4: the file loop's two journaled ops land at the gesture's close as ONE unit;
+    the reload runs after the unit, so it reads what landed."""
+    from cjm_context_graph_primitives.journal import read_journal
+
+    calls, seen = [], []
+    s = make_session(calls)
+    try:
+        s.open_stack(str(tmp_path / "g.db")).result(10)
+        store = s.queue
+        s._loader = lambda queue, graph_id: _reload(queue, seen)
+        s.file_targets({None: ["src-a"], "coll-old": ["src-b"]}, "Series").result(10)
+        recs = read_journal(s.journal_path)
+        assert [r["verb"] for r in recs] == ["collection-declaration", "collection-curation"]
+        assert len({r["unit"] for r in recs}) == 1
+        assert seen == [sorted(e["source_id"] for e in store.edges.values()
+                               if e["relation_type"] == "PART_OF")] == [["src-a", "src-b"]]
+    finally:
+        s.close()
+
+
+async def _reload(queue, seen):  # The reload reads the db the unit landed in
+    seen.append(sorted(e["source_id"] for e in queue.edges.values() if e["relation_type"] == "PART_OF"))
+    return "DATA"
